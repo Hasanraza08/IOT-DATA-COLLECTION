@@ -1,0 +1,64 @@
+# Infrastructure (always):  docker compose up -d
+# Full system (+ Python):   docker compose --profile app up --build
+
+x-app: &app                      # shared settings for the three Python services
+  build: .
+  profiles: ["app"]
+  restart: unless-stopped
+  environment:
+    DEVICE_ID: motor-01
+    MODBUS_HOST: device
+    MODBUS_PORT: "5020"
+    MQTT_HOST: mosquitto
+    DATABASE_URL: postgresql://iot:iot@postgres:5432/iot
+    DATASET_PATH: data/measures_v2.csv
+
+services:
+  # ---------- infrastructure ----------
+  mosquitto:                     # MQTT broker
+    image: eclipse-mosquitto:2
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+
+  postgres:                      # database; db/schema.sql runs on first start
+    image: postgres:16
+    environment:
+      POSTGRES_USER: iot
+      POSTGRES_PASSWORD: iot
+      POSTGRES_DB: iot
+    ports: ["5432:5432"]
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iot -d iot"]
+      interval: 3s
+      retries: 20
+
+  # ---------- our Python services ----------
+  device:                        # simulated motor = Modbus TCP server
+    <<: *app
+    command: python src/device_simulator.py
+    ports: ["5020:5020"]
+    volumes:
+      - ./data:/app/data:ro
+
+  gateway:                       # Modbus client -> MQTT publisher
+    <<: *app
+    command: python src/gateway.py
+    depends_on: [device, mosquitto]
+
+  ingestor:                      # MQTT subscriber -> PostgreSQL
+    <<: *app
+    command: python src/ingestor.py
+    depends_on:
+      mosquitto:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+volumes:
+  mosquitto-data:
+  pgdata:

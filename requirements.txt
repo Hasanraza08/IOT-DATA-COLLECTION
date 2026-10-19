@@ -1,0 +1,5 @@
+# Python libraries used by the project (install with: pip install -r requirements.txt)
+pymodbus==3.16.1        # Modbus TCP server (device simulator) and client (gateway)
+paho-mqtt==2.1.0        # MQTT client (gateway publishes, ingestor subscribes)
+psycopg[binary]==3.3.6  # PostgreSQL driver for Python
+pandas>=2.0             # reading the Kaggle CSV

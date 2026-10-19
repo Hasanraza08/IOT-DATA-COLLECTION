@@ -1,0 +1,10 @@
+# the dataset is ~200 MB - too big for GitHub, download it from Kaggle instead
+data/*.csv
+data/*.zip
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.DS_Store
